@@ -243,7 +243,7 @@ function initCountryLayer() {
   initKeyFigures();
 
   //create log scale for circle markers
-  var maxIPC = d3.max(admintwo_data, function(d) { if (d['#country+code']!='SOM') return +d['#affected+food+ipc+p3plus+num']; })
+  var maxIPC = d3.max(admintwo_data, function(d) { if (d['#country+code']=='ETH') return +d['#affected+food+ipc+p3plus+num']; })
   markerScale = d3.scaleSqrt()
     .domain([1, maxIPC])
     .range([2, 15]);
@@ -267,7 +267,7 @@ function initCountryLayer() {
 
     //ipc markers (dont show for SOM)
     var ipcVal = d['#affected+food+ipc+p3plus+num'];
-    var markerSize = (!isVal(ipcVal) || d['#country+code']=='SOM') ? 0 : markerScale(ipcVal);
+    var markerSize = (!isVal(ipcVal) || d['#country+code']=='SOM' || d['#country+code']=='KEN') ? 0 : markerScale(ipcVal);
 
     //turn off choropleth for ipc layer
     if (currentIndicator.id=='#affected+food+ipc+phase+type') {
@@ -367,7 +367,7 @@ function updateCountryLayer() {
   initKeyFigures();
 
   //update log scale for circle markers
-  var maxIPC = d3.max(admintwo_data, function(d) { if (d['#country+code']==currentCountry.code) return +d['#affected+food+ipc+p3plus+num']; })
+  var maxIPC = d3.max(admintwo_data, function(d) { if (d['#country+code']=='ETH') return +d['#affected+food+ipc+p3plus+num']; })
   markerScale.domain([2, maxIPC]);
 
   //color scale
@@ -411,7 +411,7 @@ function updateCountryLayer() {
       
       //ipc markers 
       var ipcVal = d['#affected+food+ipc+p3plus+num'];
-      markerSize = (!isVal(ipcVal) || d['#country+code']=='SOM') ? 0 : markerScale(ipcVal);
+      markerSize = (!isVal(ipcVal) || d['#country+code']=='SOM' || d['#country+code']=='KEN') ? 0 : markerScale(ipcVal);
 
       //turn off choropleth for raster layers
       if (currentIndicator.id=='#climate+rainfall+anomaly') {
@@ -718,7 +718,7 @@ function updateMapLegend(scale) {
 
   //bubble scale
   var maxIPC = d3.max(admintwo_data, function(d) { 
-    if (d['#country+code']==currentCountry.code || currentCountry.code=='Regional' && d['#country+code']!='SOM') {
+    if (d['#country+code']==currentCountry.code || currentCountry.code=='Regional' && d['#country+code']!='SOM' && d['#country+code']!='KEN') {
       return +d['#affected+food+ipc+p3plus+num'];
     } 
   })
@@ -1266,7 +1266,7 @@ function updateCountrySource() {
 }
 
 function zoomToRegion() {
-  var offset = 50;
+  var offset = 100;
   let mapPadding = (isMobile) ?
     {
         top: 0,
@@ -1276,9 +1276,9 @@ function zoomToRegion() {
     } :
     { 
       top: offset,
-      right: 0,
+      right: offset,
       bottom: offset,
-      left: $('.key-figure-panel').outerWidth() - offset,
+      left: $('.key-figure-panel').outerWidth(),
     };
   map.fitBounds(regionBoundaryData[0].bbox, {
     padding: {top: mapPadding.top, right: mapPadding.right, bottom: mapPadding.bottom, left: mapPadding.left},
@@ -1322,7 +1322,7 @@ function toggleIPCLayers(visible) {
   if (visible) {
     map.setLayoutProperty(subnationalLabelLayer, 'visibility', 'none');
     map.setLayoutProperty(subnationalMarkerLayer, 'visibility', 'visible');
-    if (currentCountry.code=='SOM') $('.bubble-scale').hide();
+    if (currentCountry.code=='KEN' || currentCountry.code=='SOM') $('.bubble-scale').hide();
     else $('.bubble-scale').show();
   }
   else {
@@ -1345,16 +1345,18 @@ function initKeyFigures() {
     {className: 'pin', title: 'People Affected', tag: '#affected+total'},
     {className: 'targeted', title: 'People Targeted', tag: '#targeted+total'},
     {className: 'reached', title: 'People Reached', tag: '#reached+total'},
-    {className: 'idp', title: 'Internally Displaced People', tag: '#affected+idps'},
+    {className: 'idp', title: 'Internally Displaced People due to Drought', tag: '#affected+idps'},
     {className: 'ipc', title: 'IPC 3+ Acute Food Insecurity', tag: '#affected+food+ipc+p3plus+num'},
-    {className: 'water', title: 'Water Insecurity', tag: '#affected+water'},
-    {className: 'sam', title: 'Severe Acute Malnutrition', tag: '#affected+sam'},
-    {className: 'gam', title: 'Global Acute Malnutrition', tag: '#affected+gam'}
+    {className: 'water', title: 'Water Insecurity', tag: '#affected+water', tooltip: 'Number of people who cannot access enough water for drinking, cooking, cleaning'},
+    {className: 'sam', title: 'No. of children (<5yrs) with Severe Acute Malnutrition', tag: '#affected+sam'},
+    {className: 'gam', title: 'No. of children (<5yrs) with Global Acute Malnutrition', tag: '#affected+gam'}
   ];
 
   impactFigures.forEach(function(fig) {
     let tag = (!isCountryView()) ? `${fig.tag}+regional` : `${fig.tag}+${(currentCountry.code).toLowerCase()}`;
-    createFigure(impactDiv, {className: fig.className, title: fig.title, stat: formatValue(data[fig.tag], 'short'), indicator: tag});
+    fig.indicator = tag;
+    fig.stat = formatValue(data[fig.tag], 'short');
+    createFigure(impactDiv, fig);
   });
 
 
@@ -1371,19 +1373,34 @@ function initKeyFigures() {
   fundingFigures.forEach(function(fig) {
     let tag = (!isCountryView()) ? `${fig.tag}+regional` : `${fig.tag}+${(currentCountry.code).toLowerCase()}`;
     let statVal = fig.tag=='#value+funding+pct' ? formatValue(data[fig.tag], 'percent') : formatValue(data[fig.tag]);
-    createFigure(fundingDiv, {className: fig.className, title: fig.title, stat: statVal, indicator: tag});
+    fig.indicator = tag;
+    fig.stat = statVal;
+    createFigure(fundingDiv, fig);
   });
 }
 
 
 function createFigure(div, obj) {
-  div.append('<div class="figure '+ obj.className +'"><div class="figure-inner"></div></div>');
-  var divInner = $('.'+ obj.className +' .figure-inner');
-  if (obj.title != undefined) divInner.append('<h6 class="title">'+ obj.title +'</h6>');
-  divInner.append('<p class="stat">'+ obj.stat +'</p>');
+  div.append(`<div class="figure ${obj.className}"><div class="figure-inner"></div></div>`);
+  var divInner = $(`.${obj.className} .figure-inner`);
+  if (obj.title != undefined) divInner.append(`<h6 class="title">${obj.title}</h6>`);
+  divInner.append(`<p class="stat">${obj.stat}</p>`);
 
   if (obj.indicator!='')
     createSource(divInner, obj.indicator);
+
+  if (obj.tooltip!=undefined) {
+    divInner.find('.title').on('mouseenter', function(e) {
+      let pos = $(e.currentTarget).position();
+      $('.panel-tooltip .tooltip-inner').html(obj.tooltip);
+      $('.panel-tooltip').css('opacity', 1);
+      $('.panel-tooltip').css('top', `${pos.top - $('.panel-tooltip').height() - 10}px`);
+      $('.panel-tooltip').css('left', `${pos.left + $(this).width()/2 - $('.panel-tooltip').width()/2}px`);
+    });
+    divInner.find('.title').on('mouseout', function(e) {
+      $('.panel-tooltip').css('opacity', 0);
+    });
+  }
 }
 
 
