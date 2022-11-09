@@ -37,56 +37,42 @@ function createSparkline(data, div, size) {
    .attr('d', line);
 }
 
-
 /****************************************/
-/*** TIMESERIES CHART FUNCTIONS ***/
+/*** RANKING CHART FUNCTIONS ***/
 /****************************************/
-function initTimeseries(data, div) {
-  let formattedData = formatData(data);
-  $('.trendseries-title').html('<h6>Total Number of Conflict Events</h6><div class="num">'+numFormat(data.length)+'</div>');
-  createTimeSeries(formattedData, div);
+function initRanking(data, div) {
+  let formattedData = formatRankingData(data);
+  $('.ranking-title').html(`<h6>Top Ten Donors in All Countries (USD)</h6>`);
+  createRanking(formattedData, div);
 }
 
-let eventsArray;
-function formatData(data) {
-  let events = d3.nest()
-    .key(function(d) { return d['#event+type']; })
-    .key(function(d) { return d['#date+occurred']; })
-    .rollup(function(leaves) { return leaves.length; })
+function formatRankingData(data) {
+  let donors = d3.nest()
+    .key(function(d) { return d['#org+name+funder']; })
+    .rollup(function(leaves) { return d3.sum(leaves, function(d) {
+      return d['#value+funding+total+usd']
+    })})
     .entries(data);
-  events.sort((a, b) => (a.key > b.key) ? 1 : -1);
-
-  let dates = [... new Set(acledData.map((d) => d['#date+occurred']))];
-  let totals = [];
-
-  eventsArray = [];
-  events.forEach(function(event) {
-    let array = [];
-    dates.forEach(function(date, index) {
-      let val = 0;
-      event.values.forEach(function(e) {
-        if (e.key==date)
-          val = e.value;
-      });
-      totals[index] = (totals[index]==undefined) ? val : totals[index]+val; //save aggregate of all events per day
-      array.push(val); //save each event per day
-    });
-    array.reverse();
-    array.unshift(event.key);
-    eventsArray.push(array);
-  });
+  donors.sort((a, b) => (a.value < b.value) ? 1 : -1);
 
   //format for c3
-  dates.unshift('x');
-  totals.unshift('All');
-  return {series: [dates, totals], events: eventsArray};
+  let num = 10;
+  let donorsArray = donors.slice(0, num).map((d) => d.key);
+  donorsArray.unshift('x');
+
+  let valueArray = donors.slice(0, num).map((d) => d.value);
+  valueArray.unshift('values');
+
+  return {donors: donorsArray, values: valueArray};
 }
 
 
-function createTimeSeries(data, div) {
+function createRanking(data, div) {
   const chartWidth = viewportWidth - $('.key-figure-panel').width() - 100;
-  const chartHeight = 280;
+  const chartHeight = 400;
   let colorArray = ['#F8B1AD'];
+  let valMax = data.values.slice(1, data.values.length);
+  let yMax = d3.max(valMax);
 
   var chart = c3.generate({
     size: {
@@ -96,97 +82,237 @@ function createTimeSeries(data, div) {
     padding: {
       bottom: (isMobile) ? 60 : 0,
       top: 10,
-      left: (isMobile) ? 30 : 35,
+      left: (isMobile) ? 300 : 300,
       right: (isMobile) ? 200 : 200
     },
     bindto: div,
     data: {
       x: 'x',
-      columns: data.series,
-      type: 'bar'
-    },
-    bar: {
-        width: {
-            ratio: 0.5
+      columns: [
+        data.donors,
+        data.values
+      ],
+      types: {
+        values: 'bar'
+      },
+      labels: {
+        format: {
+          values: function (v) { return formatValue(v); }
         }
+      }
     },
     color: {
       pattern: colorArray
     },
-    point: { show: false },
+    axis: {
+      x: {
+        type: 'category',
+        tick: {
+          outer: false,
+          multiline: true,
+          multilineMax: 2,
+          width: 225
+        }
+      },
+      y: {
+        max: yMax,
+        padding: {top: 40, right: 0},
+        //show: false
+        tick: {
+          format: function(d) {
+            return formatValue(d);
+          }
+        }
+      },
+      rotated: true
+    },
+    legend: {
+      show: false
+    },
     grid: {
       y: {
         show: true
       }
     },
-    axis: {
-      x: {
-        type: 'timeseries',
-        tick: { 
-          outer: false
-        }
-      },
-      y: {
-        min: 0,
-        padding: { 
-          top: (isMobile) ? 20 : 50, 
-          bottom: 0 
-        },
-        tick: { 
-          outer: false,
-          //format: d3.format('d')
-          format: function(d) {
-            if (Math.floor(d) != d){
-              return;
-            }
-            return d;
-          }
-        }
-      }
-    },
-    legend: {
+    point: { show: false },
+    tooltip: {
       show: false
     },
-    transition: { duration: 500 },
-    tooltip: {
-      contents: function (d, defaultTitleFormat, defaultValueFormat, color) {
-        let events = eventsArray;
-        let id = d[0].index + 1;
-        let date = new Date(d[0].x);
-        let total = 0;
-        let html = `<table><thead><tr><th colspan="2">${moment(date).format('MMM D, YYYY')}</th></tr><thead>`;
-        for (var i=0; i<=events.length-1; i++) {
-          if (events[i][id]>0) {
-            html += `<tr><td>${events[i][0]}</td><td>${events[i][id]}</td></tr>`;
-            total += events[i][id];
-          }
-        };
-        html += `<tr><td><b>Total</b></td><td><b>${total}</b></td></tr></table>`;
-        return html;
-      }
-    }
+    transition: { duration: 500 }
   });
 
-  countryTimeseriesChart = chart;
-  createSource($('#chart-view .source-container'), '#date+latest+acled');
+  //adjust placement of bar labels
+  d3.select('.c3-text').attr('dy', '0.3em')
+
+  rankingChart = chart;
+  createSource($('#chart-view .source-container'), '#value+funding+total+usd+regional');
 }
 
 
-function updateTimeseries(selected) {
-  let filteredData = (selected!='All') ? acledData.filter((d) => d['#adm1+code'] == selected) : acledData;
-  let data = formatData(filteredData);
-  eventsArray = data.events;
-  $('.trendseries-title').find('.num').html(numFormat(filteredData.length));
+function updateRanking(selected) {
+  let filteredData = (selected!='Regional') ? donorData.filter((d) => d['#country+code'] == selected) : donorData;
+  let data = formatRankingData(filteredData);
+  let countryName = (selected!='Regional') ? globalCountryList.filter((d) => d.code == selected)[0].name : 'All Countries';
+  $('.ranking-title').html(`<h6>Top Ten Donors in ${countryName} (USD)</h6>`);
 
-  if (filteredData.length<=0)
-    $('.trendseries-chart').hide();
-  else 
-    $('.trendseries-chart').show();
-
-  countryTimeseriesChart.load({
-    columns: data.series
+  rankingChart.load({
+    columns: [
+      data.donors,
+      data.values
+    ]
   });
 }
+
+
+/****************************************/
+/*** TIMESERIES CHART FUNCTIONS ***/
+/****************************************/
+// function initTimeseries(data, div) {
+//   let formattedData = formatData(data);
+//   $('.trendseries-title').html('<h6>Total Number of Conflict Events</h6><div class="num">'+numFormat(data.length)+'</div>');
+//   createTimeSeries(formattedData, div);
+// }
+
+// let eventsArray;
+// function formatData(data) {
+//   let events = d3.nest()
+//     .key(function(d) { return d['#event+type']; })
+//     .key(function(d) { return d['#date+occurred']; })
+//     .rollup(function(leaves) { return leaves.length; })
+//     .entries(data);
+//   events.sort((a, b) => (a.key > b.key) ? 1 : -1);
+
+//   let dates = [... new Set(acledData.map((d) => d['#date+occurred']))];
+//   let totals = [];
+
+//   eventsArray = [];
+//   events.forEach(function(event) {
+//     let array = [];
+//     dates.forEach(function(date, index) {
+//       let val = 0;
+//       event.values.forEach(function(e) {
+//         if (e.key==date)
+//           val = e.value;
+//       });
+//       totals[index] = (totals[index]==undefined) ? val : totals[index]+val; //save aggregate of all events per day
+//       array.push(val); //save each event per day
+//     });
+//     array.reverse();
+//     array.unshift(event.key);
+//     eventsArray.push(array);
+//   });
+
+//   //format for c3
+//   dates.unshift('x');
+//   totals.unshift('All');
+//   return {series: [dates, totals], events: eventsArray};
+// }
+
+
+// function createTimeSeries(data, div) {
+//   const chartWidth = viewportWidth - $('.key-figure-panel').width() - 100;
+//   const chartHeight = 280;
+//   let colorArray = ['#F8B1AD'];
+
+//   var chart = c3.generate({
+//     size: {
+//       width: chartWidth,
+//       height: chartHeight
+//     },
+//     padding: {
+//       bottom: (isMobile) ? 60 : 0,
+//       top: 10,
+//       left: (isMobile) ? 30 : 35,
+//       right: (isMobile) ? 200 : 200
+//     },
+//     bindto: div,
+//     data: {
+//       x: 'x',
+//       columns: data.series,
+//       type: 'bar'
+//     },
+//     bar: {
+//         width: {
+//             ratio: 0.5
+//         }
+//     },
+//     color: {
+//       pattern: colorArray
+//     },
+//     point: { show: false },
+//     grid: {
+//       y: {
+//         show: true
+//       }
+//     },
+//     axis: {
+//       x: {
+//         type: 'timeseries',
+//         tick: { 
+//           outer: false
+//         }
+//       },
+//       y: {
+//         min: 0,
+//         padding: { 
+//           top: (isMobile) ? 20 : 50, 
+//           bottom: 0 
+//         },
+//         tick: { 
+//           outer: false,
+//           //format: d3.format('d')
+//           format: function(d) {
+//             if (Math.floor(d) != d){
+//               return;
+//             }
+//             return d;
+//           }
+//         }
+//       }
+//     },
+//     legend: {
+//       show: false
+//     },
+//     transition: { duration: 500 },
+//     tooltip: {
+//       contents: function (d, defaultTitleFormat, defaultValueFormat, color) {
+//         let events = eventsArray;
+//         let id = d[0].index + 1;
+//         let date = new Date(d[0].x);
+//         let total = 0;
+//         let html = `<table><thead><tr><th colspan="2">${moment(date).format('MMM D, YYYY')}</th></tr><thead>`;
+//         for (var i=0; i<=events.length-1; i++) {
+//           if (events[i][id]>0) {
+//             html += `<tr><td>${events[i][0]}</td><td>${events[i][id]}</td></tr>`;
+//             total += events[i][id];
+//           }
+//         };
+//         html += `<tr><td><b>Total</b></td><td><b>${total}</b></td></tr></table>`;
+//         return html;
+//       }
+//     }
+//   });
+
+//   countryTimeseriesChart = chart;
+//   createSource($('#chart-view .source-container'), '#date+latest+acled');
+// }
+
+
+// function updateTimeseries(selected) {
+//   let filteredData = (selected!='All') ? acledData.filter((d) => d['#adm1+code'] == selected) : acledData;
+//   let data = formatData(filteredData);
+//   eventsArray = data.events;
+//   $('.trendseries-title').find('.num').html(numFormat(filteredData.length));
+
+//   if (filteredData.length<=0)
+//     $('.trendseries-chart').hide();
+//   else 
+//     $('.trendseries-chart').show();
+
+//   countryTimeseriesChart.load({
+//     columns: data.series
+//   });
+// }
 
 
 /***************************/
@@ -1221,13 +1347,13 @@ function initAcledLayer() {
   });
 
   //add acled layer per country
-  let countries = ['eth', 'ken', 'som'];
-  countries.forEach(function(country) {
+  globalCountryList.forEach(function(country) {
+    let iso = country.code.toLowerCase();
     map.addLayer({
-      id: `acled-dots-${country}`,
+      id: `acled-dots-${iso}`,
       type: 'circle',
       source: 'acled',
-      filter: ['==', 'iso', country.toUpperCase()],
+      filter: ['==', 'iso', iso.toUpperCase()],
       paint: {
         'circle-color': eventTypeColorScale,
         'circle-stroke-color': eventTypeColorScale,
@@ -1236,12 +1362,12 @@ function initAcledLayer() {
         'circle-stroke-width': 1,
       }
     }, baseLayer);
-    map.setLayoutProperty(`acled-dots-${country}`, 'visibility', 'none');
+    map.setLayoutProperty(`acled-dots-${iso}`, 'visibility', 'none');
 
     //mouse events
-    map.on('mouseenter', `acled-dots-${country}`, onMouseEnter);
-    map.on('mouseleave', `acled-dots-${country}`, onMouseLeave);
-    map.on('mousemove', `acled-dots-${country}`, function(e) {
+    map.on('mouseenter', `acled-dots-${iso}`, onMouseEnter);
+    map.on('mouseleave', `acled-dots-${iso}`, onMouseLeave);
+    map.on('mousemove', `acled-dots-${iso}`, function(e) {
       map.getCanvas().style.cursor = 'pointer';
       let prop = e.features[0].properties;
       let date = new Date(prop.date);
@@ -1322,6 +1448,14 @@ function createEvents() {
     updateCountrySource();
   });
 
+  //ranking select event
+  d3.selectAll('.ranking-select').on('change',function(e) {
+    var selected = d3.select(this).node().value;
+    if (selected!='') {
+      updateRanking(selected);
+    }
+  });
+
   //map legend radio events
   $('input[type="radio"]').click(function(){
     var selected = $('input[name="countryIndicators"]:checked');
@@ -1363,7 +1497,7 @@ function selectCountry(features) {
         bottom: 0
     } :
     { 
-      top: padding,//$('.tab-menubar').outerHeight() + padding
+      top: $('.tab-menubar').outerHeight() + padding,
       right: $('.map-legend').outerWidth(),
       bottom: padding,
       left: $('.key-figure-panel').outerWidth() + padding,
@@ -1457,9 +1591,9 @@ function toggleIPCLayers(visible) {
 }
 
 function toggleAcledLayer(visible) {
-  ['eth','ken','som'].forEach(function(country) {
-    let vis = (visible && (!isCountryView() || currentCountry.code.toLowerCase()==country)) ? 'visible' : 'none';
-    map.setLayoutProperty(`acled-dots-${country}`, 'visibility', vis);
+  globalCountryList.forEach(function(country) {
+    let vis = (visible && (!isCountryView() || currentCountry.code.toLowerCase()==country.code.toLowerCase())) ? 'visible' : 'none';
+    map.setLayoutProperty(`acled-dots-${country.code.toLowerCase()}`, 'visibility', vis);
   });
 }
 
@@ -1676,8 +1810,8 @@ var eventColorRange = ['#EEB598','#CE7C7F','#60A2A4','#91C4B7'];
 var eventCategories = ['Battles', 'Explosions/Remote violence', 'Riots', 'Violence against civilians'];
 var colorDefault = '#F2F2EF';
 var colorNoData = '#FFF';
-var regionBoundaryData, regionalData, nationalData, adminone_data, admintwo_data, ethData, fatalityData, dataByCountry, colorScale, viewportWidth, viewportHeight = '';
-var countryTimeseriesChart = '';
+var regionBoundaryData, regionalData, nationalData, adminone_data, admintwo_data, ethData, fatalityData, donorData, dataByCountry, colorScale, viewportWidth, viewportHeight = '';
+var rankingChart = '';
 var mapLoaded = false;
 var dataLoaded = false;
 var viewInitialized = false;
@@ -1723,7 +1857,7 @@ $( document ).ready(function() {
     if (viewportHeight<696) {
       zoomLevel = 1.4;
     }
-    $('#chart-view').height(viewportHeight-30);//$('#chart-view').height(viewportHeight-$('.tab-menubar').outerHeight()-30);
+    $('#chart-view').height(viewportHeight-$('.tab-menubar').outerHeight()-30);
 
     //load static map -- will only work for screens smaller than 1280
     if (viewportWidth<=1280) {
@@ -1755,8 +1889,10 @@ $( document ).ready(function() {
       sourcesData = allData.sources_data;
       regionBoundaryData = data[1].features;
       ethData = data[2].features;
+      donorData = allData.planorgfunding_data;
 
       //clean acled data
+      fatalityData = allData.fatalities_data;
       acledCoords(allData.fatalities_data);
 
       //parse national data
@@ -1770,7 +1906,6 @@ $( document ).ready(function() {
           return (a.name < b.name) ? -1 : (a.name > b.name) ? 1 : 0;
         });
       });
-
 
       //transform adm1 ipc data
       // adminone_data.forEach(function(d) {
@@ -1855,22 +1990,25 @@ $( document ).ready(function() {
   }
 
   function initView() {
+    //load ranking data for chart view 
+    initRanking(donorData, '.ranking-chart');
+
     //check map loaded status
     if (mapLoaded==true && viewInitialized==false)
       deepLinkView();
 
     //create tab events
-    // $('.tab-menubar .tab-button').on('click', function() {
-    //   $('.tab-button').removeClass('active');
-    //   $(this).addClass('active');
-    //   if ($(this).data('id')=='chart-view') {
-    //     $('#chart-view').show();
-    //   }
-    //   else {
-    //     $('#chart-view').hide();
-    //   }
-    //   vizTrack($(this).data('id'), currentIndicator.name);
-    // });
+    $('.tab-menubar .tab-button').on('click', function() {
+      $('.tab-button').removeClass('active');
+      $(this).addClass('active');
+      if ($(this).data('id')=='chart-view') {
+        $('#chart-view').show();
+      }
+      else {
+        $('#chart-view').hide();
+      }
+      vizTrack($(this).data('id'), currentIndicator.name);
+    });
 
     //create country dropdown
     $('.country-select').empty();
@@ -1886,16 +2024,18 @@ $( document ).ready(function() {
     currentCountry = {code: 'Regional', name:'All Countries'}
 
     //create chart view country select
-    // $('.trendseries-select').append($('<option value="All">All Clusters</option>')); 
-    // var trendseriesSelect = d3.select('.trendseries-select')
-    //   .selectAll('option')
-    //   .data(subnationalData)
-    //   .enter().append('option')
-    //     .text(function(d) {
-    //       let name = (d['#adm1+code']=='UA80') ? d['#adm1+name'] + ' (city)' : d['#adm1+name'];
-    //       return name; 
-    //     })
-    //     .attr('value', function (d) { return d['#adm1+code']; });
+    //$('.ranking-select').append($('<option value="All">All Countries</option>')); 
+    var rankingSelect = d3.select('.ranking-select')
+      .selectAll('option')
+      .data(globalCountryList)
+      .enter().append('option')
+        .text(function(d) {
+          return d.name; 
+        })
+        .attr('value', function (d) { return d.code; });
+    //insert default option    
+    $('.ranking-select').prepend('<option value="Regional">All Countries</option>');
+    $('.ranking-select').val($('.ranking-select option:first').val());
 
     viewInitialized = true;
   }
