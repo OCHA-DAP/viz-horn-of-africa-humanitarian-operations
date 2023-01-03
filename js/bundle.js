@@ -1835,7 +1835,7 @@ function createCountryMapTooltip(location) {
     if (row.indicator!=currentIndicator.id) {
       let value = location[row.indicator];
       let shortVal = (value==0 || isNaN(value)) ? 'No Data' : shortenNumFormat(value);
-      if (row.indicator=='#affected+food+ipc+p3plus+num') shortVal = (value==undefined) ? 'No Data' : value;
+      if (row.indicator=='#affected+food+ipc+p3plus+num') shortVal = (value==undefined) ? 'No Data' : shortenNumFormat(value);
       content += `<div class="table-row"><div>${row.label}:</div><div>${shortVal}</div></div>`;
     }
   });
@@ -1874,7 +1874,7 @@ function setTooltipPosition(point) {
   }
 }
 var numFormat = d3.format(',');
-var shortenNumFormat = d3.format('.2s');
+var shortenNumFormat = d3.format('.3s');
 var percentFormat = d3.format('.1%');
 var dateFormat = d3.utcFormat("%b %d, %Y");
 var chartDateFormat = d3.utcFormat("%-m/%-d/%y");
