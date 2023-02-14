@@ -1677,7 +1677,6 @@ function toggleAcledLayer(visible) {
 /*** PANEL FUNCTIONS ***/
 /***********************/
 function initKeyFigures() {
-  console.log('initKeyFigures')
   var data = (!isCountryView()) ? regionalData : dataByCountry[currentCountry.code][0];
   console.log(currentCountry.code)
 
