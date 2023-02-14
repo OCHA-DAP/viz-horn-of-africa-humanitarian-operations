@@ -1104,6 +1104,7 @@ function displayMap() {
 
 
   mapFeatures = map.queryRenderedFeatures();
+  console.log('1', mapFeatures)
 
   //load raster layers
   loadRasters();
@@ -1452,6 +1453,7 @@ function deepLinkView() {
 function matchMapFeatures(country_code) {
   //loop through mapFeatures to find matches to currentCountry.code
   var selectedFeatures = [];
+  console.log('2', mapFeatures)
   mapFeatures.forEach(function(feature) {
     if (feature.sourceLayer==adm0SourceLayer && feature.properties.ISO3_CODE==currentCountry.code) {
       selectedFeatures.push(feature)
@@ -1679,6 +1681,8 @@ function toggleAcledLayer(visible) {
 /***********************/
 function initKeyFigures() {
   var data = (!isCountryView()) ? regionalData : dataByCountry[currentCountry.code][0];
+  console.log('data',data)
+  console.log('currentCountry',currentCountry)
 
   //humanitarian impact figures
   var impactDiv = $('.key-figure-panel .impact .panel-inner');
@@ -1696,6 +1700,7 @@ function initKeyFigures() {
   ];
 
   impactFigures.forEach(function(fig) {
+    console.log('impactFigures', fig);
     let tag = (!isCountryView()) ? `${fig.tag}+regional` : `${fig.tag}+${(currentCountry.code).toLowerCase()}`;
     fig.indicator = tag;
     fig.stat = formatValue(data[fig.tag], 'short');
@@ -1714,6 +1719,7 @@ function initKeyFigures() {
   ];
 
   fundingFigures.forEach(function(fig) {
+    console.log('fundingFigures', fig);
     let tag = (!isCountryView()) ? `${fig.tag}+regional` : `${fig.tag}+${(currentCountry.code).toLowerCase()}`;
     let statVal = fig.tag=='#value+funding+pct' ? formatValue(data[fig.tag], 'percent') : formatValue(data[fig.tag]);
     fig.indicator = tag;
